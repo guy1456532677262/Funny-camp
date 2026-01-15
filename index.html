@@ -4,27 +4,54 @@
 <meta charset="UTF-8">
 <title>Sandbox Assault Shooter</title>
 <style>
-    body {
-        margin: 0;
-        background: #111;
-        color: white;
-        font-family: Arial, sans-serif;
-        text-align: center;
-    }
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
 
-    #ui {
-        padding: 10px;
-        background: #222;
-        display: flex;
-        justify-content: space-around;
-    }
+#ui {
+    padding: 10px;
+    background: #222;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
 
-    canvas {
-        background: #000;
-        display: block;
-        margin: auto;
-        border: 2px solid #444;
-    }
+canvas {
+    background: #000;
+    display: block;
+    margin: auto;
+    border: 2px solid #444;
+}
+
+/* SHOP */
+#shop {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.shop-btn {
+    margin: 10px;
+    padding: 12px 20px;
+    background: #333;
+    color: white;
+    border: 1px solid #777;
+    cursor: pointer;
+}
+
+.shop-btn:hover {
+    background: #555;
+}
 </style>
 </head>
 <body>
@@ -36,168 +63,24 @@
     <div>Wave: <span id="wave">0</span></div>
 </div>
 
+<div id="shop">
+    <h1>SHOP</h1>
+    <button class="shop-btn" onclick="buyWeapon('SMG')">
+        Buy SMG (300) | Stacks: <span id="smgStacks">0</span>
+    </button>
+    <button class="shop-btn" onclick="buyWeapon('Shotgun')">
+        Buy Shotgun (450) | Stacks: <span id="shotgunStacks">0</span>
+    </button>
+    <button class="shop-btn" onclick="closeShop()">Continue</button>
+</div>
+
 <canvas id="game" width="800" height="500"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let mode = "assault";
 let health = 100;
 let score = 0;
 let wave = 0;
-
-const keys = {};
-
-const player = {
-    x: 400,
-    y: 250,
-    speed: 4
-};
-
-const weapons = [
-    { name: "Pistol", damage: 10, fireRate: 400 },
-    { name: "SMG", damage: 6, fireRate: 150 },
-    { name: "Rifle", damage: 20, fireRate: 600 }
-];
-
-let weaponIndex = 0;
-let lastShot = 0;
-
-// 🔫 GLOBAL SHOOT COOLDOWN
-const SHOOT_COOLDOWN = 500; // 0.5 seconds
-let lastUseTime = 0;
-
-let bullets = [];
-let enemies = [];
-
-// 🚀 BULLET SPEED (15x faster)
-const BULLET_SPEED = (10 * 60) / 60; // px per frame
-
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-function spawnEnemy() {
-    enemies.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        health: 30 + wave * 5,
-        speed: 1 + wave * 0.1
-    });
-}
-
-function getClosestEnemy() {
-    let closest = null;
-    let minDist = Infinity;
-
-    for (let e of enemies) {
-        const d = Math.hypot(player.x - e.x, player.y - e.y);
-        if (d < minDist) {
-            minDist = d;
-            closest = e;
-        }
-    }
-    return closest;
-}
-
-function shoot() {
-    const now = Date.now();
-    const weapon = weapons[weaponIndex];
-
-    // Weapon fire rate
-    if (now - lastShot < weapon.fireRate) return;
-
-    // Global cooldown
-    if (now - lastUseTime < SHOOT_COOLDOWN) return;
-
-    const target = getClosestEnemy();
-    if (!target) return;
-
-    lastShot = now;
-    lastUseTime = now;
-
-    const dx = target.x - player.x;
-    const dy = target.y - player.y;
-    const dist = Math.hypot(dx, dy);
-
-    bullets.push({
-        x: player.x,
-        y: player.y,
-        vx: (dx / dist) * BULLET_SPEED,
-        vy: (dy / dist) * BULLET_SPEED,
-        damage: weapon.damage
-    });
-}
-
-function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Movement
-    if (keys["w"]) player.y -= player.speed;
-    if (keys["s"]) player.y += player.speed;
-    if (keys["a"]) player.x -= player.speed;
-    if (keys["d"]) player.x += player.speed;
-
-    // Shooting (E)
-    if (keys["e"]) shoot();
-
-    // Player
-    ctx.fillStyle = "cyan";
-    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
-
-    // Bullets
-    bullets.forEach((b, i) => {
-        b.x += b.vx;
-        b.y += b.vy;
-
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x, b.y, 4, 4);
-
-        enemies.forEach((en, ei) => {
-            if (Math.hypot(b.x - en.x, b.y - en.y) < 10) {
-                en.health -= b.damage;
-                bullets.splice(i, 1);
-                if (en.health <= 0) {
-                    enemies.splice(ei, 1);
-                    score += 10;
-                }
-            }
-        });
-    });
-
-    // Enemies
-    enemies.forEach(en => {
-        const dx = player.x - en.x;
-        const dy = player.y - en.y;
-        const dist = Math.hypot(dx, dy);
-
-        en.x += (dx / dist) * en.speed;
-        en.y += (dy / dist) * en.speed;
-
-        ctx.fillStyle = "red";
-        ctx.beginPath();
-        ctx.arc(en.x, en.y, 10, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (dist < 15) health -= 0.1;
-    });
-
-    // Assault waves
-    if (enemies.length === 0) {
-        wave++;
-        for (let i = 0; i < wave; i++) spawnEnemy();
-    }
-
-    document.getElementById("health").textContent = Math.max(0, Math.floor(health));
-    document.getElementById("score").textContent = score;
-    document.getElementById("wave").textContent = wave;
-
-    if (health > 0) requestAnimationFrame(update);
-    else alert("Game Over");
-}
-
-update();
-</script>
-
-</body>
-</html>
+let shopOpen
