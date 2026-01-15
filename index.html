@@ -64,10 +64,15 @@ const weapons = [
 let weaponIndex = 0;
 let lastShot = 0;
 
+// 🔫 GLOBAL SHOOT COOLDOWN
+const SHOOT_COOLDOWN = 500; // 0.5 seconds
+let lastUseTime = 0;
+
 let bullets = [];
 let enemies = [];
 
-const BULLET_SPEED = 10 / 60; // 10 px per second
+// 🚀 BULLET SPEED (15x faster)
+const BULLET_SPEED = (10 * 15) / 60; // px per frame
 
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
@@ -98,12 +103,18 @@ function getClosestEnemy() {
 function shoot() {
     const now = Date.now();
     const weapon = weapons[weaponIndex];
+
+    // Weapon fire rate
     if (now - lastShot < weapon.fireRate) return;
+
+    // Global cooldown
+    if (now - lastUseTime < SHOOT_COOLDOWN) return;
 
     const target = getClosestEnemy();
     if (!target) return;
 
     lastShot = now;
+    lastUseTime = now;
 
     const dx = target.x - player.x;
     const dy = target.y - player.y;
@@ -121,7 +132,7 @@ function shoot() {
 function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Movement (smooth WASD)
+    // Movement
     if (keys["w"]) player.y -= player.speed;
     if (keys["s"]) player.y += player.speed;
     if (keys["a"]) player.x -= player.speed;
