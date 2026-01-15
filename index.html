@@ -19,18 +19,6 @@
         justify-content: space-around;
     }
 
-    button {
-        padding: 8px 14px;
-        background: #444;
-        color: white;
-        border: none;
-        cursor: pointer;
-    }
-
-    button:hover {
-        background: #666;
-    }
-
     canvas {
         background: #000;
         display: block;
@@ -46,9 +34,6 @@
     <div>Weapon: <span id="weapon">Pistol</span></div>
     <div>Score: <span id="score">0</span></div>
     <div>Wave: <span id="wave">0</span></div>
-    <button onclick="setMode('sandbox')">Sandbox</button>
-    <button onclick="setMode('assault')">Assault</button>
-    <button onclick="upgradeWeapon()">Upgrade</button>
 </div>
 
 <canvas id="game" width="800" height="500"></canvas>
@@ -57,10 +42,12 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let mode = "sandbox";
+let mode = "assault";
 let health = 100;
 let score = 0;
 let wave = 0;
+
+const keys = {};
 
 const player = {
     x: 400,
@@ -70,9 +57,8 @@ const player = {
 
 const weapons = [
     { name: "Pistol", damage: 10, fireRate: 400 },
-    { name: "SMG", damage: 6, fireRate: 120 },
-    { name: "Rifle", damage: 20, fireRate: 600 },
-    { name: "Launcher", damage: 50, fireRate: 1000 }
+    { name: "SMG", damage: 6, fireRate: 150 },
+    { name: "Rifle", damage: 20, fireRate: 600 }
 ];
 
 let weaponIndex = 0;
@@ -81,18 +67,10 @@ let lastShot = 0;
 let bullets = [];
 let enemies = [];
 
-function setMode(m) {
-    mode = m;
-    enemies = [];
-    wave = 0;
-}
+const BULLET_SPEED = 10 / 60; // 10 px per second
 
-function upgradeWeapon() {
-    if (weaponIndex < weapons.length - 1) {
-        weaponIndex++;
-        document.getElementById("weapon").textContent = weapons[weaponIndex].name;
-    }
-}
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
 function spawnEnemy() {
     enemies.push({
@@ -103,35 +81,54 @@ function spawnEnemy() {
     });
 }
 
-function shoot(x, y) {
+function getClosestEnemy() {
+    let closest = null;
+    let minDist = Infinity;
+
+    for (let e of enemies) {
+        const d = Math.hypot(player.x - e.x, player.y - e.y);
+        if (d < minDist) {
+            minDist = d;
+            closest = e;
+        }
+    }
+    return closest;
+}
+
+function shoot() {
     const now = Date.now();
     const weapon = weapons[weaponIndex];
     if (now - lastShot < weapon.fireRate) return;
+
+    const target = getClosestEnemy();
+    if (!target) return;
+
     lastShot = now;
+
+    const dx = target.x - player.x;
+    const dy = target.y - player.y;
+    const dist = Math.hypot(dx, dy);
 
     bullets.push({
         x: player.x,
         y: player.y,
-        dx: (x - player.x) / 20,
-        dy: (y - player.y) / 20,
+        vx: (dx / dist) * BULLET_SPEED,
+        vy: (dy / dist) * BULLET_SPEED,
         damage: weapon.damage
     });
 }
 
-canvas.addEventListener("click", e => {
-    const rect = canvas.getBoundingClientRect();
-    shoot(e.clientX - rect.left, e.clientY - rect.top);
-});
-
-document.addEventListener("keydown", e => {
-    if (e.key === "w") player.y -= player.speed;
-    if (e.key === "s") player.y += player.speed;
-    if (e.key === "a") player.x -= player.speed;
-    if (e.key === "d") player.x += player.speed;
-});
-
 function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Movement (smooth WASD)
+    if (keys["w"]) player.y -= player.speed;
+    if (keys["s"]) player.y += player.speed;
+    if (keys["a"]) player.x -= player.speed;
+    if (keys["d"]) player.x += player.speed;
+
+    // Shooting (E)
+    if (keys["e"]) shoot();
 
     // Player
     ctx.fillStyle = "cyan";
@@ -139,13 +136,14 @@ function update() {
 
     // Bullets
     bullets.forEach((b, i) => {
-        b.x += b.dx;
-        b.y += b.dy;
+        b.x += b.vx;
+        b.y += b.vy;
+
         ctx.fillStyle = "yellow";
         ctx.fillRect(b.x, b.y, 4, 4);
 
         enemies.forEach((en, ei) => {
-            if (Math.hypot(b.x - en.x, b.y - en.y) < 12) {
+            if (Math.hypot(b.x - en.x, b.y - en.y) < 10) {
                 en.health -= b.damage;
                 bullets.splice(i, 1);
                 if (en.health <= 0) {
@@ -156,11 +154,12 @@ function update() {
         });
     });
 
-    // Enemies (critters)
+    // Enemies
     enemies.forEach(en => {
         const dx = player.x - en.x;
         const dy = player.y - en.y;
         const dist = Math.hypot(dx, dy);
+
         en.x += (dx / dist) * en.speed;
         en.y += (dy / dist) * en.speed;
 
@@ -169,20 +168,13 @@ function update() {
         ctx.arc(en.x, en.y, 10, 0, Math.PI * 2);
         ctx.fill();
 
-        if (dist < 15) {
-            health -= 0.1;
-        }
+        if (dist < 15) health -= 0.1;
     });
 
     // Assault waves
-    if (mode === "assault" && enemies.length === 0) {
+    if (enemies.length === 0) {
         wave++;
         for (let i = 0; i < wave; i++) spawnEnemy();
-    }
-
-    // Sandbox spawn
-    if (mode === "sandbox" && Math.random() < 0.01) {
-        spawnEnemy();
     }
 
     document.getElementById("health").textContent = Math.max(0, Math.floor(health));
